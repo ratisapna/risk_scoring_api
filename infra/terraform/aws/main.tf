@@ -174,7 +174,7 @@ resource "aws_security_group" "rds" {
 resource "aws_db_instance" "postgres" {
   identifier            = "risk-scoring-db"
   engine                = "postgres"
-  engine_version        = "15.3"
+  engine_version        = "14"
   instance_class        = "db.t3.micro"
   allocated_storage     = 20
   storage_type          = "gp2"
@@ -186,14 +186,14 @@ resource "aws_db_instance" "postgres" {
 
   db_subnet_group_name            = aws_db_subnet_group.main.name
   vpc_security_group_ids          = [aws_security_group.rds.id]
-  parameter_group_name            = "default.postgres15"
+  parameter_group_name            = "default.postgres14"
   skip_final_snapshot             = true
   publicly_accessible             = false
   multi_az                        = false
-  backup_retention_period         = 7
+  backup_retention_period         = 1
   backup_window                   = "03:00-04:00"
   maintenance_window              = "sun:04:00-sun:05:00"
-  enabled_cloudwatch_logs_exports = ["postgresql"]
+  enabled_cloudwatch_logs_exports = []
 
   tags = {
     Name = "risk-scoring-postgres"
