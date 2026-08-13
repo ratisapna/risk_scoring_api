@@ -169,16 +169,3 @@ async def get_transaction(
         ],
         created_at=transaction.created_at.isoformat(),
     )
-
-
-@router.post("/admin/create-key", tags=["admin"])
-async def create_api_key(name: str = "test_key", key: Optional[str] = None, db: Session = Depends(get_db)):
-    """TEMP: Create API key for testing. Remove after Phase 4 testing."""
-    generated_key = key or APIKey.generate_key()
-    if db.query(APIKey).filter(APIKey.key == generated_key).first():
-        raise HTTPException(status_code=400, detail="Key already exists")
-    api_key_obj = APIKey(name=name, key=generated_key, is_active=True)
-    db.add(api_key_obj)
-    db.commit()
-    db.refresh(api_key_obj)
-    return {"id": api_key_obj.id, "key": api_key_obj.key, "name": api_key_obj.name}

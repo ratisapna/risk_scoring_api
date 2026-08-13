@@ -1,7 +1,6 @@
 from fastapi import FastAPI
-from sqlalchemy.orm import sessionmaker
 from app.config import get_settings
-from app.db import Base, engine, get_db
+from app.db import Base, engine
 from app.api import router
 from app.db.api_key import APIKey
 from app.db.rate_limit import RateLimitLog
@@ -10,19 +9,6 @@ settings = get_settings()
 
 # Create database tables on startup
 Base.metadata.create_all(bind=engine)
-
-# Seed default API key for testing
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-db = SessionLocal()
-try:
-    if db.query(APIKey).filter(APIKey.key == "JzQEXbmTBMjDLxUNtHsO").first() is None:
-        test_key = APIKey(name="test_key", key="JzQEXbmTBMjDLxUNtHsO", is_active=True)
-        db.add(test_key)
-        db.commit()
-except Exception:
-    db.rollback()
-finally:
-    db.close()
 
 app = FastAPI(
     title="Transaction Risk Scoring API",
