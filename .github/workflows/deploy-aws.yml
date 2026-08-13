@@ -1,0 +1,88 @@
+name: Deploy to AWS
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  AWS_REGION: us-east-1
+  TERRAFORM_DIR: infra/terraform/aws
+
+jobs:
+  deploy-aws:
+    runs-on: ubuntu-latest
+    environment: aws-production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: github-actions-deploy
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v2
+        with:
+          terraform_version: 1.6.0
+
+      - name: Terraform Init
+        run: terraform init
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        env:
+          TF_VAR_github_repo: ${{ github.repository }}
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_allowed_ssh_cidr: ${{ secrets.ALLOWED_SSH_CIDR }}
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        env:
+          TF_VAR_aws_region: ${{ env.AWS_REGION }}
+          TF_VAR_db_password: ${{ secrets.DB_PASSWORD }}
+          TF_VAR_ssh_public_key: ${{ secrets.SSH_PUBLIC_KEY }}
+          TF_VAR_allowed_ssh_cidr: ${{ secrets.ALLOWED_SSH_CIDR }}
+
+      - name: Get Terraform Outputs
+        id: terraform
+        run: |
+          echo "ec2_ip=$(terraform output -raw ec2_public_ip)" >> $GITHUB_OUTPUT
+          echo "app_url=$(terraform output -raw app_url)" >> $GITHUB_OUTPUT
+        working-directory: ${{ env.TERRAFORM_DIR }}
+
+      - name: Health Check (Wait for App)
+        run: |
+          for i in {1..30}; do
+            if curl -f ${{ steps.terraform.outputs.app_url }}/health; then
+              echo "✓ App is healthy"
+              exit 0
+            fi
+            echo "Waiting for app to start ($i/30)..."
+            sleep 10
+          done
+          echo "✗ App failed to start"
+          exit 1
+
+      - name: Post Deployment Status
+        if: always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const status = '${{ job.status }}' === 'success' ? '✅ Success' : '❌ Failed';
+            const appUrl = '${{ steps.terraform.outputs.app_url }}';
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `${status} - AWS Deployment\n\nApp URL: ${appUrl}`
+            });
