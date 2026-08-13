@@ -129,32 +129,109 @@ risk-scoring-api/
 └── README.md                     # This file
 ```
 
-## Getting Started (Scaffolding Phase)
+## Getting Started
 
-### Prerequisites
+### Local Development (Phase 1: Skeleton)
+
+**Prerequisites**:
 - Python 3.11+
-- pip / poetry
+- Docker & Docker Compose (optional, for containerized dev)
 
-### Install Dependencies
+**Setup**:
 ```bash
+git clone https://github.com/ratisapna/risk_scoring_api.git
+cd risk_scoring_api
 pip install -e ".[dev]"
 ```
 
-### Run Tests
+**Run tests locally**:
 ```bash
-pytest tests/test_rules/ -v --cov=app --cov-report=term-missing
+pytest tests/ -v --cov=app --cov-report=term-missing
 ```
 
-Expected output:
-```
-54 passed in ~2s, coverage: 98.8% (rules engine fully covered)
+**Run the app locally**:
+```bash
+# Option 1: Direct Python
+uvicorn app.main:app --reload
+
+# Option 2: Docker Compose
+docker-compose up
 ```
 
-### Run Linting
-```bash
-black --check app/
-ruff check app/
+Then visit `http://localhost:8000/health` — should return:
+```json
+{
+  "status": "healthy",
+  "service": "transaction-risk-scoring-api",
+  "version": "0.1.0"
+}
 ```
+
+**Run linting**:
+```bash
+black app/ tests/
+ruff check app/ tests/
+```
+
+## Deployment (Phase 1: Live Skeleton)
+
+### Setup Render Account & Service
+
+1. **Create Render account**: https://render.com (sign up with GitHub)
+
+2. **Create new Web Service**:
+   - Click "New +" → "Web Service"
+   - Connect your GitHub repo: `ratisapna/risk_scoring_api`
+   - Configure:
+     - **Name**: `risk-scoring-api`
+     - **Region**: Your closest (e.g., us-east-1)
+     - **Runtime**: Docker
+     - **Build command**: `(leave empty, Dockerfile handles it)`
+     - **Start command**: `(leave empty, Dockerfile handles it)`
+   - Click "Create Web Service"
+   
+   Render will automatically:
+   - Pull your code
+   - Build the Docker image
+   - Deploy to `https://risk-scoring-api.onrender.com`
+   - Deploy takes ~2 minutes
+
+3. **Add GitHub Secrets** (for automated deploy.yml):
+   In your GitHub repo, go to **Settings → Secrets and variables → Actions**:
+   - `RENDER_SERVICE_ID`: Found in Render service URL (srv-xxxxx)
+   - `RENDER_DEPLOY_KEY`: From Render **Settings → Deploy Hook** (copy the key portion)
+   - `RENDER_URL`: Your service URL (https://risk-scoring-api.onrender.com)
+
+4. **Test the deployment**:
+   ```bash
+   curl https://risk-scoring-api.onrender.com/health
+   ```
+   Should return `{"status": "healthy", ...}`
+
+### CI/CD Pipeline
+
+Every time you push to `main`:
+1. **CI workflow** runs: lint, tests, coverage checks
+2. **Deploy workflow** runs if CI passes:
+   - Builds Docker image
+   - Triggers Render to pull latest code
+   - Waits for deployment (~2 min)
+   - Runs smoke test (`/health` check)
+   - Notifies if deployment fails
+
+**View workflow status**: GitHub repo → **Actions** tab
+
+**View logs**:
+- GitHub Actions: Repo → Actions → Click workflow run
+- Render: Service dashboard → **Logs** tab
+
+### Costs (Phase 1)
+- **Render Web Service**: Free tier (but goes to sleep after 15 min inactivity)
+- **Render Paid**: $7/month for always-on service
+
+For portfolio: free tier is fine (you'll keep it active during interviews).
+
+---
 
 ## Next Steps (in order)
 
