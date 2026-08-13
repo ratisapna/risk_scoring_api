@@ -3,7 +3,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
-from app.db import Transaction, get_db
+from app.db import Transaction, APIKey, get_db
 from app.rules import score_transaction
 from app.schemas import (
     ScoringRequest,
@@ -12,6 +12,7 @@ from app.schemas import (
     TransactionListResponse,
     TransactionDetailResponse,
 )
+from app.security import verify_api_key, check_rate_limit
 
 router = APIRouter(prefix="/api/v1", tags=["transactions"])
 
@@ -22,8 +23,13 @@ router = APIRouter(prefix="/api/v1", tags=["transactions"])
     summary="Score a transaction",
     description="Evaluate a transaction through the rules engine and store the result",
 )
-async def score(request: ScoringRequest, db: Session = Depends(get_db)):
+async def score(
+    request: ScoringRequest,
+    db: Session = Depends(get_db),
+    api_key: APIKey = Depends(verify_api_key),
+):
     """Score a transaction and store the result."""
+    check_rate_limit(db, api_key)
     try:
         # Prepare transaction dict for rules engine
         transaction_dict = {
@@ -92,8 +98,10 @@ async def list_transactions(
     limit: int = Query(100, ge=1, le=1000, description="Number of results"),
     offset: int = Query(0, ge=0, description="Pagination offset"),
     db: Session = Depends(get_db),
+    api_key: APIKey = Depends(verify_api_key),
 ):
     """List transactions with optional filtering and pagination."""
+    check_rate_limit(db, api_key)
     query = db.query(Transaction)
 
     # Apply filters
@@ -137,8 +145,10 @@ async def list_transactions(
 async def get_transaction(
     transaction_id: int,
     db: Session = Depends(get_db),
+    api_key: APIKey = Depends(verify_api_key),
 ):
     """Get full details of a transaction including all rule results."""
+    check_rate_limit(db, api_key)
     transaction = db.query(Transaction).filter(Transaction.id == transaction_id).first()
 
     if not transaction:

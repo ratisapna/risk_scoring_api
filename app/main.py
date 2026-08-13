@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from app.config import get_settings
 from app.db import Base, engine
 from app.api import router
+from app.db.api_key import APIKey
+from app.db.rate_limit import RateLimitLog
 
 settings = get_settings()
 

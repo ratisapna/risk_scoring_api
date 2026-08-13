@@ -1,6 +1,7 @@
 from datetime import datetime
 from typing import List, Optional
 from pydantic import BaseModel, Field, field_validator
+from app.security import sanitize_merchant_category
 
 
 class ScoringRequest(BaseModel):
@@ -27,6 +28,11 @@ class ScoringRequest(BaseModel):
         except ValueError:
             raise ValueError("timestamp must be ISO 8601 format")
         return v
+
+    @field_validator("merchant_category")
+    @classmethod
+    def validate_merchant_category(cls, v):
+        return sanitize_merchant_category(v)
 
     @field_validator("location")
     @classmethod

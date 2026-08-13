@@ -5,19 +5,25 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.main import app
-from app.db import Base, get_db
+from app.db import Base, get_db, APIKey
 
 
 @pytest.fixture
-def db():
-    """Create in-memory SQLite database for tests."""
+def test_engine():
+    """Create test engine."""
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool
     )
     Base.metadata.create_all(bind=engine)
-    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    return engine
+
+
+@pytest.fixture
+def db(test_engine):
+    """Create in-memory SQLite database for tests."""
+    TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
 
     def override_get_db():
         database = TestingSessionLocal()
@@ -37,8 +43,23 @@ def client(db):
     return TestClient(app)
 
 
+@pytest.fixture
+def api_key(test_engine):
+    """Create a test API key."""
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=test_engine)
+    db_session = SessionLocal()
+
+    key = APIKey(name="test_key", key=APIKey.generate_key())
+    db_session.add(key)
+    db_session.commit()
+    db_session.refresh(key)
+    db_session.close()
+
+    return key.key
+
+
 class TestScoreEndpoint:
-    def test_score_valid_transaction(self, client):
+    def test_score_valid_transaction(self, client, api_key):
         """POST /api/v1/score should accept valid transaction."""
         response = client.post(
             "/api/v1/score",
@@ -49,6 +70,7 @@ class TestScoreEndpoint:
                 "merchant_category": "grocery",
                 "location": "40.7128,-74.0060",
             },
+            headers={"Authorization": f"Bearer {api_key}"},
         )
         assert response.status_code == 200
         data = response.json()
