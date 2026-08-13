@@ -169,3 +169,28 @@ async def get_transaction(
         ],
         created_at=transaction.created_at.isoformat(),
     )
+
+
+@router.get(
+    "/stats",
+    summary="Get transaction statistics",
+    description="Returns statistics about scored transactions",
+)
+async def get_stats(
+    db: Session = Depends(get_db),
+    api_key: APIKey = Depends(verify_api_key),
+):
+    """Get transaction statistics and metrics."""
+    check_rate_limit(db, api_key)
+    total = db.query(Transaction).count()
+    high_risk = db.query(Transaction).filter(Transaction.severity == "high").count()
+    medium_risk = db.query(Transaction).filter(Transaction.severity == "medium").count()
+    low_risk = db.query(Transaction).filter(Transaction.severity == "low").count()
+
+    return {
+        "total_transactions": total,
+        "high_risk_count": high_risk,
+        "medium_risk_count": medium_risk,
+        "low_risk_count": low_risk,
+        "high_risk_percentage": (high_risk / total * 100) if total > 0 else 0,
+    }
