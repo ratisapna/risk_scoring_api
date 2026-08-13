@@ -80,7 +80,7 @@ class TestScoreEndpoint:
         assert data["severity"] in ["low", "medium", "high"]
         assert "rules_triggered" in data
 
-    def test_score_high_risk_category(self, client):
+    def test_score_high_risk_category(self, client, api_key):
         """POST /api/v1/score should flag high-risk categories."""
         response = client.post(
             "/api/v1/score",
@@ -91,6 +91,7 @@ class TestScoreEndpoint:
                 "merchant_category": "cryptocurrency_exchange",
                 "location": "40.7128,-74.0060",
             },
+            headers={"Authorization": f"Bearer {api_key}"},
         )
         assert response.status_code == 200
         data = response.json()
@@ -98,7 +99,7 @@ class TestScoreEndpoint:
         triggered_rules = [r["name"] for r in data["rules_triggered"] if r["triggered"]]
         assert "high_risk_category_check" in triggered_rules
 
-    def test_score_invalid_amount(self, client):
+    def test_score_invalid_amount(self, client, api_key):
         """POST /api/v1/score should reject negative amount."""
         response = client.post(
             "/api/v1/score",
@@ -109,10 +110,11 @@ class TestScoreEndpoint:
                 "merchant_category": "grocery",
                 "location": "40.7128,-74.0060",
             },
+            headers={"Authorization": f"Bearer {api_key}"},
         )
         assert response.status_code == 422
 
-    def test_score_invalid_timestamp(self, client):
+    def test_score_invalid_timestamp(self, client, api_key):
         """POST /api/v1/score should reject invalid timestamp."""
         response = client.post(
             "/api/v1/score",
@@ -123,10 +125,11 @@ class TestScoreEndpoint:
                 "merchant_category": "grocery",
                 "location": "40.7128,-74.0060",
             },
+            headers={"Authorization": f"Bearer {api_key}"},
         )
         assert response.status_code == 422
 
-    def test_score_invalid_location(self, client):
+    def test_score_invalid_location(self, client, api_key):
         """POST /api/v1/score should reject invalid location format."""
         response = client.post(
             "/api/v1/score",
@@ -137,19 +140,20 @@ class TestScoreEndpoint:
                 "merchant_category": "grocery",
                 "location": "invalid",
             },
+            headers={"Authorization": f"Bearer {api_key}"},
         )
         assert response.status_code == 422
 
 
 class TestListTransactions:
-    def test_list_empty(self, client):
+    def test_list_empty(self, client, api_key):
         """GET /api/v1/transactions should return empty list initially."""
-        response = client.get("/api/v1/transactions")
+        response = client.get("/api/v1/transactions", headers={"Authorization": f"Bearer {api_key}"})
         assert response.status_code == 200
         data = response.json()
         assert data == []
 
-    def test_list_after_score(self, client):
+    def test_list_after_score(self, client, api_key):
         """GET /api/v1/transactions should return scored transactions."""
         # Score a transaction
         client.post(
@@ -161,18 +165,20 @@ class TestListTransactions:
                 "merchant_category": "grocery",
                 "location": "40.7128,-74.0060",
             },
+            headers={"Authorization": f"Bearer {api_key}"},
         )
 
         # List transactions
-        response = client.get("/api/v1/transactions")
+        response = client.get("/api/v1/transactions", headers={"Authorization": f"Bearer {api_key}"})
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
         assert data[0]["user_id"] == "user_123"
         assert data[0]["severity"] in ["low", "medium", "high"]
 
-    def test_list_filter_by_severity(self, client):
+    def test_list_filter_by_severity(self, client, api_key):
         """GET /api/v1/transactions should filter by severity."""
+        headers = {"Authorization": f"Bearer {api_key}"}
         # Score a low-risk transaction
         client.post(
             "/api/v1/score",
@@ -183,6 +189,7 @@ class TestListTransactions:
                 "merchant_category": "grocery",
                 "location": "40.7128,-74.0060",
             },
+            headers=headers,
         )
 
         # Score a high-risk transaction
@@ -195,16 +202,18 @@ class TestListTransactions:
                 "merchant_category": "cryptocurrency_exchange",
                 "location": "40.7128,-74.0060",
             },
+            headers=headers,
         )
 
         # Filter by high severity
-        response = client.get("/api/v1/transactions?severity=high")
+        response = client.get("/api/v1/transactions?severity=high", headers=headers)
         assert response.status_code == 200
         data = response.json()
         assert all(t["severity"] == "high" for t in data)
 
-    def test_list_filter_by_user_id(self, client):
+    def test_list_filter_by_user_id(self, client, api_key):
         """GET /api/v1/transactions should filter by user_id."""
+        headers = {"Authorization": f"Bearer {api_key}"}
         # Score for multiple users
         client.post(
             "/api/v1/score",
@@ -215,6 +224,7 @@ class TestListTransactions:
                 "merchant_category": "grocery",
                 "location": "40.7128,-74.0060",
             },
+            headers=headers,
         )
         client.post(
             "/api/v1/score",
@@ -225,10 +235,11 @@ class TestListTransactions:
                 "merchant_category": "grocery",
                 "location": "40.7128,-74.0060",
             },
+            headers=headers,
         )
 
         # Filter by user
-        response = client.get("/api/v1/transactions?user_id=user_123")
+        response = client.get("/api/v1/transactions?user_id=user_123", headers=headers)
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
@@ -236,13 +247,14 @@ class TestListTransactions:
 
 
 class TestGetTransaction:
-    def test_get_transaction_not_found(self, client):
+    def test_get_transaction_not_found(self, client, api_key):
         """GET /api/v1/transactions/{id} should return 404 for missing ID."""
-        response = client.get("/api/v1/transactions/9999")
+        response = client.get("/api/v1/transactions/9999", headers={"Authorization": f"Bearer {api_key}"})
         assert response.status_code == 404
 
-    def test_get_transaction_details(self, client):
+    def test_get_transaction_details(self, client, api_key):
         """GET /api/v1/transactions/{id} should return full details."""
+        headers = {"Authorization": f"Bearer {api_key}"}
         # Score a transaction
         score_response = client.post(
             "/api/v1/score",
@@ -253,11 +265,12 @@ class TestGetTransaction:
                 "merchant_category": "grocery",
                 "location": "40.7128,-74.0060",
             },
+            headers=headers,
         )
         transaction_id = score_response.json()["id"]
 
         # Get transaction details
-        response = client.get(f"/api/v1/transactions/{transaction_id}")
+        response = client.get(f"/api/v1/transactions/{transaction_id}", headers=headers)
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == transaction_id
