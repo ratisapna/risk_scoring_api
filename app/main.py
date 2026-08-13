@@ -21,8 +21,8 @@ app = FastAPI(
 app.include_router(router)
 
 
-@app.get("/health")
-async def health() -> dict:
+@app.get("/live")
+async def live() -> dict:
     """Health check endpoint for deployment and monitoring.
 
     Returns:
